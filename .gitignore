@@ -1,0 +1,15 @@
+# Build-Output VSCode/MPLAB-Plugin (CMake)
+_build/
+out/
+# vom MPLAB-Plugin aus .vscode/*.mplab.json generiert
+cmake/
+
+# Alt-Build MPLAB X (Makefile)
+build/
+dist/
+debug/
+nbproject/private/
+
+# Sonstiges
+*.bak
+Thumbs.db

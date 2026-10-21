@@ -1,0 +1,9 @@
+{
+    "mplab.clangd.compileCommandsDir": "${workspaceFolder}\\_build\\GTB_SB_Tester\\default",
+    "mplab.clangd.path": "c:\\Program Files\\Microchip\\xc8\\v3.10\\bin\\xc8-clangd.exe",
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "mplab.clangd.arguments": [
+        "--header-insertion=never"
+    ],
+    "cmake.sourceDirectory": "N:/Projekte/Pinball_PIC_Tester/VSCode/GTB_SB_Tester.X/cmake/GTB_SB_Tester/default"
+}

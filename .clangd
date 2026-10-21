@@ -1,0 +1,6 @@
+# clangd-Konfiguration fuer das XC8 / PIC Projekt (wird vom xc8-clangd ausgewertet)
+Diagnostics:
+  Suppress:
+    - main_returns_nonint
+  UnusedIncludes: None
+  MissingIncludes: None
