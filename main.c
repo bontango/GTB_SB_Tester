@@ -6,6 +6,8 @@
  * READ Port / Write LAT
  * 
  * v 0.1 based on bally Tester
+ * v 0.3 SOL8/SOL9 fixed, sound test drives sound lines,
+ *       from/to range limits, t:0 lockout and switch debounce fixed
  */
 
 //no warnings about 
@@ -19,7 +21,7 @@
 #include <string.h>
 #include "lcd_hd44780.h"
 
-#define VERSION "0.1"
+#define VERSION "0.3"
 
 //typedefs
 typedef union typed {
@@ -78,7 +80,7 @@ uint8_t n_main_menu = 3;
     };
 
   const char * solenoid_option[] = {
-        "SOL1 ... SOL8",
+        "SOL1 ... SOL9",
         "Tilt, GO & C.Lockout"
     };
 
@@ -87,7 +89,10 @@ uint8_t n_main_menu = 3;
   
   //default values from to for the 3 main menues
   int select_from[3] = { 2, 1, 1 };
-  int select_to[3] = { 48, 16, 8 };
+  int select_to[3] = { 48, 15, 9 };
+  //limits for from/to: lamps 12 flip-flops * 4, sound 4 lines, 9 solenoids
+  const int select_min[3] = { 2, 1, 1 };
+  const int select_max[3] = { 49, 15, 9 };
   
   
     
@@ -162,6 +167,8 @@ struct {
 coil = q-1;
                  // compute number of flip_flop which is a 74175 
                  flip_flop = ( coil / 4) + 1;
+                 //only flip_flop_byte[1..12] exist
+                 if ( flip_flop > 12 ) return;
                  
                  //prepare the input and think of old status
                  switch ( coil % 4)     //the rest
@@ -220,15 +227,26 @@ void solenoid_pulse(unsigned char sol)
                          case 6: SOL6 = 1; __delay_ms(cur_pulse); SOL6 = 0; break;
                          case 7: SOL7 = 1; __delay_ms(cur_pulse); SOL7 = 0; break;
                          case 8: SOL8 = 1; __delay_ms(cur_pulse); SOL8 = 0; break;
+                         case 9: SOL9 = 1; __delay_ms(cur_pulse); SOL9 = 0; break;
                          default:        break;
-                        }                           
-                
+                        }
+
   }
 
 //sound data standard soundboard
-//implemented based on tarces on org Bally MPU by holli8123
+//Gottlieb: sound number binary on Sound 1,2,4,8 for pulse time, then back to 0
 void sound_data_standard(unsigned char value)
 {
+    bitv_t my_value;
+
+    my_value.byte = value;
+
+    SOUND1 = my_value.bitv.b0;
+    SOUND2 = my_value.bitv.b1;
+    SOUND4 = my_value.bitv.b2;
+    SOUND8 = my_value.bitv.b3;
+    __delay_ms(cur_pulse);
+    SOUND1 = SOUND2 = SOUND4 = SOUND8 = 0;
 }
 
 
@@ -307,15 +325,15 @@ unsigned char check_sw(void)
     //S3 == RET1
     status = RETURN_1;
     if (status == 1) status = 0; else status = 1;
-    if ( debounce(1, status) ) return(SW_UP);        
+    if ( debounce(SW_UP, status) ) return(SW_UP);
     //S2 == RET2
     status = RETURN_2;
     if (status == 1) status = 0; else status = 1;
-    if ( debounce(1, status) ) return(SW_LEFT);        
+    if ( debounce(SW_LEFT, status) ) return(SW_LEFT);
     //S4 == RET3
     status = RETURN_3;
     if (status == 1) status = 0; else status = 1;
-    if ( debounce(1, status) ) return(SW_DOWN);        
+    if ( debounce(SW_DOWN, status) ) return(SW_DOWN);
                         
     //Strobe2
     STROBE_1 = 1; STROBE_2=0; STROBE_3=1; 
@@ -323,11 +341,11 @@ unsigned char check_sw(void)
     //S1 == RET1
     status = RETURN_1;
     if (status == 1) status = 0; else status = 1;
-    if ( debounce(1, status) ) return(SW_OK);    
+    if ( debounce(SW_OK, status) ) return(SW_OK);
     //S5 == RET2
     status = RETURN_2;
     if (status == 1) status = 0; else status = 1;
-    if ( debounce(2, status) ) return(SW_RIGHT);            
+    if ( debounce(SW_RIGHT, status) ) return(SW_RIGHT);
                 
     //strobeall zero
     STROBE_1 = 1; STROBE_2=1; STROBE_3=1; 
@@ -443,36 +461,36 @@ void select_menu(void)
            switch(current_pos)
            {
                case 0:
-                   if (( select_from[cur_menu] + 0x10) <= 0xFF) select_from[cur_menu] += 0x10;
+                   if (( select_from[cur_menu] + 0x10) <= select_max[cur_menu]) select_from[cur_menu] += 0x10;
                    if (select_from[cur_menu] > select_to[cur_menu]) select_to[cur_menu] = select_from[cur_menu];
                    break;
                case 1:
-                   if (( select_from[cur_menu] + 1) <= 0xFF) select_from[cur_menu] += 1;
+                   if (( select_from[cur_menu] + 1) <= select_max[cur_menu]) select_from[cur_menu] += 1;
                    if (select_from[cur_menu] > select_to[cur_menu]) select_to[cur_menu] = select_from[cur_menu];
                    break;
                case 2:
-                   if (( select_to[cur_menu] + 0x10) <= 0xFF) select_to[cur_menu] += 0x10;                   
+                   if (( select_to[cur_menu] + 0x10) <= select_max[cur_menu]) select_to[cur_menu] += 0x10;
                    break;
                case 3:
-                   if (( select_to[cur_menu] + 1) <= 0xFF) select_to[cur_menu] += 1;                   
-                   break;               
+                   if (( select_to[cur_menu] + 1) <= select_max[cur_menu]) select_to[cur_menu] += 1;
+                   break;
            }
-           break;           
-       case SW_DOWN:           
+           break;
+       case SW_DOWN:
            switch(current_pos)
            {
                case 0:
-                   if (( select_from[cur_menu] - 0x10) >= 0) select_from[cur_menu] -= 0x10;
+                   if (( select_from[cur_menu] - 0x10) >= select_min[cur_menu]) select_from[cur_menu] -= 0x10;
                    break;
                case 1:
-                   if (( select_from[cur_menu] - 1) >= 0) select_from[cur_menu] -= 1;
+                   if (( select_from[cur_menu] - 1) >= select_min[cur_menu]) select_from[cur_menu] -= 1;
                    break;
                case 2:
-                   if (( select_to[cur_menu] - 0x10) >= 0) select_to[cur_menu] -= 0x10;                   
-                   if (select_to[cur_menu] < select_from[cur_menu]) select_from[cur_menu] = select_to[cur_menu];                   
+                   if (( select_to[cur_menu] - 0x10) >= select_min[cur_menu]) select_to[cur_menu] -= 0x10;
+                   if (select_to[cur_menu] < select_from[cur_menu]) select_from[cur_menu] = select_to[cur_menu];
                    break;
                case 3:
-                   if (( select_to[cur_menu] - 1) >= 0) select_to[cur_menu] -= 1;                   
+                   if (( select_to[cur_menu] - 1) >= select_min[cur_menu]) select_to[cur_menu] -= 1;
                    if (select_to[cur_menu] < select_from[cur_menu]) select_from[cur_menu] = select_to[cur_menu];                                      
                    break;               
            }           
@@ -542,7 +560,7 @@ void mode_sound_menu(void)
            if (cur_sound_t <= 8) ++cur_sound_t;
            break;           
        case SW_DOWN:           
-           if (cur_sound_t >= 1) --cur_sound_t;           
+           if (cur_sound_t > 1) --cur_sound_t; //0 would block cancel with OK
            break;                      
    }     
       refresh_display();
@@ -572,7 +590,7 @@ void mode_solenoid_menu(void)
            if (cur_sol_t <= 8) ++cur_sol_t;
            break;           
        case SW_DOWN:           
-           if (cur_sol_t >= 1) --cur_sol_t;           
+           if (cur_sol_t > 1) --cur_sol_t; //0 would block cancel with OK
            break;                      
    }     
       refresh_display();
@@ -740,11 +758,9 @@ void do_sound_test(void)
       //test S&T only
       switch(cur_option[cur_menu])
       {     
-          case 0: //chims 
-              solenoid_pulse(i-1);
-              break;
-          case 1:     //32         
-          case 2:     //50
+          case 0:     //small SB
+          case 1:     //big SB 80&80A
+          case 2:     //big SB 80B
               sound_data_standard(i);
               break;          
           case 3:   //51
@@ -792,7 +808,7 @@ void do_solenoid_test(void)
       switch(cur_option[cur_menu])
       {     
           case 0: //momentary solenoids
-              solenoid_pulse(i-1);
+              solenoid_pulse(i);
               break;          
           case 1: //continous solenoids
               switch(i)
@@ -906,6 +922,7 @@ TRISA = 0b00010000;    //RA4 input (Returns)
 //---------------------------------------------
 // Port B
 ANSELB = 0;   //All I/O pins are configured as digital
+LATB = 0;     //clear port (sound lines off)
 TRISB = 0b00001100;    //RB2&3 input (Returns)
 
 //---------------------------------------------
