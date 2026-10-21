@@ -380,7 +380,6 @@
         {
             "name": "Project files",
             "files": [
-                "Makefile",
                 "*.c",
                 "*.h"
             ],
