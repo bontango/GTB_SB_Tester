@@ -8,6 +8,8 @@
  * v 0.1 based on bally Tester
  * v 0.3 SOL8/SOL9 fixed, sound test drives sound lines,
  *       from/to range limits, t:0 lockout and switch debounce fixed
+ * v 0.4 lamp numbers are Gottlieb lamp numbers 0..47 (decimal, no offset),
+ *       all lamps off at start and after test, relay test (GO, Tilt, Lockout)
  */
 
 //no warnings about 
@@ -21,7 +23,7 @@
 #include <string.h>
 #include "lcd_hd44780.h"
 
-#define VERSION "0.3"
+#define VERSION "0.4"
 
 //typedefs
 typedef union typed {
@@ -88,11 +90,18 @@ uint8_t n_main_menu = 3;
   uint8_t n_option[3] = { 6, 3, 2 };
   
   //default values from to for the 3 main menues
+  //lamps: Gottlieb lamp numbers, 0=GO relay 1=Tilt relay are skipped by default
   int select_from[3] = { 2, 1, 1 };
-  int select_to[3] = { 48, 15, 9 };
-  //limits for from/to: lamps 12 flip-flops * 4, sound 4 lines, 9 solenoids
-  const int select_min[3] = { 2, 1, 1 };
-  const int select_max[3] = { 49, 15, 9 };
+  int select_to[3] = { 47, 15, 9 };
+  //limits for from/to: lamps 12 flip-flops * 4 (48..51 are inverted 44..47), sound 4 lines, 9 solenoids
+  const int select_min[3] = { 0, 1, 1 };
+  const int select_max[3] = { 47, 15, 9 };
+
+  //relays are driven by lamp outputs
+  #define LAMP_GO_RELAY 0
+  #define LAMP_TILT_RELAY 1
+  #define LAMP_LOCKOUT_RELAY 2
+  #define N_LAMPS 48
   
   
     
@@ -144,16 +153,15 @@ set_238( unsigned char data)
 }
 
 /*
-        lisy80_coil_set
-        coil -> nr of coil
- *          0..47 Lamps
- *          48..51 Sound 1,2,4,8
- *          52 .. 63 Coils
+        q_set
+        lamp -> Gottlieb lamp number 0..47
+ *          lamp n is DS(n/4+1), LD(n%4+1)
+ *          lamps 48..51 are hardwired as inverted lamps 44..47
         action -> 0-off, 1-on
 */
-void q_set( int q, int action) {
-unsigned char flip_flop, coil;        
-                
+void q_set( int lamp, int action) {
+unsigned char flip_flop, coil;
+
 //remeber the flip_flop settings of each
 static union lisy80_flip_flop {
         unsigned char byte;
@@ -163,9 +171,9 @@ struct {
 //} flip_flop_byte[13] = { 0,0,0,0,0,0,0,0,0,0,0,0 };
 } flip_flop_byte[13];
 
-//q1 is coil 0
-coil = q-1;
-                 // compute number of flip_flop which is a 74175 
+if (( lamp < 0 ) || ( lamp >= N_LAMPS )) return;
+coil = lamp;
+                 // compute number of flip_flop which is a 74175
                  flip_flop = ( coil / 4) + 1;
                  //only flip_flop_byte[1..12] exist
                  if ( flip_flop > 12 ) return;
@@ -382,7 +390,7 @@ void refresh_display( void )
     entry1 = main_menu[cur_menu];
     
     //construct line 3
-    sprintf(line3,"from:0x%02x to:0x%02x",select_from[cur_menu], select_to[cur_menu]);
+    sprintf(line3,"from:%02d to:%02d",select_from[cur_menu], select_to[cur_menu]);
     entry3 = line3;
        
     //construct line 3
@@ -439,7 +447,7 @@ from - to
 void select_menu(void)
 {
     uint8_t my_switch;
-    uint8_t pos[4] = { 9, 10, 17, 18 };
+    uint8_t pos[4] = { 7, 8, 13, 14 }; //decimal digits of "> from:nn to:nn"
     uint8_t current_pos = 0;
 
     LCD_GotoXY(pos[current_pos],2);
@@ -461,7 +469,7 @@ void select_menu(void)
            switch(current_pos)
            {
                case 0:
-                   if (( select_from[cur_menu] + 0x10) <= select_max[cur_menu]) select_from[cur_menu] += 0x10;
+                   if (( select_from[cur_menu] + 10) <= select_max[cur_menu]) select_from[cur_menu] += 10;
                    if (select_from[cur_menu] > select_to[cur_menu]) select_to[cur_menu] = select_from[cur_menu];
                    break;
                case 1:
@@ -469,7 +477,7 @@ void select_menu(void)
                    if (select_from[cur_menu] > select_to[cur_menu]) select_to[cur_menu] = select_from[cur_menu];
                    break;
                case 2:
-                   if (( select_to[cur_menu] + 0x10) <= select_max[cur_menu]) select_to[cur_menu] += 0x10;
+                   if (( select_to[cur_menu] + 10) <= select_max[cur_menu]) select_to[cur_menu] += 10;
                    break;
                case 3:
                    if (( select_to[cur_menu] + 1) <= select_max[cur_menu]) select_to[cur_menu] += 1;
@@ -480,13 +488,13 @@ void select_menu(void)
            switch(current_pos)
            {
                case 0:
-                   if (( select_from[cur_menu] - 0x10) >= select_min[cur_menu]) select_from[cur_menu] -= 0x10;
+                   if (( select_from[cur_menu] - 10) >= select_min[cur_menu]) select_from[cur_menu] -= 10;
                    break;
                case 1:
                    if (( select_from[cur_menu] - 1) >= select_min[cur_menu]) select_from[cur_menu] -= 1;
                    break;
                case 2:
-                   if (( select_to[cur_menu] - 0x10) >= select_min[cur_menu]) select_to[cur_menu] -= 0x10;
+                   if (( select_to[cur_menu] - 10) >= select_min[cur_menu]) select_to[cur_menu] -= 10;
                    if (select_to[cur_menu] < select_from[cur_menu]) select_from[cur_menu] = select_to[cur_menu];
                    break;
                case 3:
@@ -680,51 +688,51 @@ void do_lamp_test(void)
      for(i=select_from[cur_menu]; i<=select_to[cur_menu]; i++)
      {
       LCD_GotoXY(0,3);        
-      sprintf(line,"lamp  %02x ON          ",i);
+      sprintf(line,"lamp  %02d ON          ",i);
       LCD_STRING(line);   
-      q_set(i-1,1);   //numbering 0..59  
+      q_set(i,1);   //Gottlieb lamp number
       //wait & check OK switch                   
-      if (sleep_n_100ms(cur_lamp_t)) return;      
+      if (sleep_n_100ms(cur_lamp_t)) { q_set(i,0); return; }      
       
       LCD_GotoXY(0,3);        
-      sprintf(line,"lamp  %02x OFF         ",i);
+      sprintf(line,"lamp  %02d OFF         ",i);
       LCD_STRING(line);   
-      q_set(i-1,0);   //numbering 0..59  
+      q_set(i,0);   //Gottlieb lamp number
       //wait & check OK switch                   
       if (sleep_n_100ms(cur_lamp_t)) return;           }                
    }
     else
    {      
       LCD_GotoXY(0,3);        
-      sprintf(line,"lamp  %02x ON          ",i);
+      sprintf(line,"lamp  %02d ON          ",i);
       LCD_STRING(line);   
-      q_set(i-1,1);   //numbering 0..59  
+      q_set(i,1);   //Gottlieb lamp number
            
        switch ( check_sw())
        {
        case SW_OK:           
-           q_set(i-1,0);   //old lamp OFF
+           q_set(i,0);   //old lamp OFF
            return;
        case SW_LEFT:       
             if ( i > select_from[cur_menu]) {
-                    q_set(i-1,0);   //old lamp OFF
+                    q_set(i,0);   //old lamp OFF
                     i = i -1;
                     }                    
                     else
                     {
-                        q_set(i-1,0);   //old lamp OFF
+                        q_set(i,0);   //old lamp OFF
                         i = select_to[cur_menu]; //wrap
                     }
 
             break;
        case SW_RIGHT:        
             if ( i < select_to[cur_menu]) {
-                    q_set(i-1,0);   //old lamp OFF
+                    q_set(i,0);   //old lamp OFF
                     i = i +1;
                     }
                     else
                     {
-                        q_set(i-1,0);   //old lamp OFF
+                        q_set(i,0);   //old lamp OFF
                         i = select_from[cur_menu]; //wrap
                     }            
             break;            
@@ -752,7 +760,7 @@ void do_sound_test(void)
      for(i=select_from[cur_menu]; i<=select_to[cur_menu]; i++)
      {
       LCD_GotoXY(0,3);        
-      sprintf(line," play sound %02x",i);
+      sprintf(line," play sound %02d",i);
       LCD_STRING(line);   
       LCD_GotoXY(12,3);        
       //test S&T only
@@ -781,11 +789,37 @@ void do_sound_test(void)
     }
 }
 
+//relays GO, Tilt and Coin Lockout are lamp outputs 0, 1, 2
+//switch each relay on for t sec, then off
+void do_relay_test(void)
+{
+    const char * relay_name[] = { "Game Over", "Tilt", "C.Lockout" };
+    const int relay_lamp[] = { LAMP_GO_RELAY, LAMP_TILT_RELAY, LAMP_LOCKOUT_RELAY };
+    int i;
+
+    while(1)  //test forever
+    {
+     for(i=0; i<3; i++)
+     {
+      LCD_GotoXY(0,3);
+      sprintf(line," %-9s relay ON ",relay_name[i]);
+      LCD_STRING(line);
+      q_set(relay_lamp[i],1);
+      if (sleep_n_100ms(cur_sol_t*10)) { q_set(relay_lamp[i],0); return; }
+
+      LCD_GotoXY(0,3);
+      sprintf(line," %-9s relay OFF",relay_name[i]);
+      LCD_STRING(line);
+      q_set(relay_lamp[i],0);
+      if (sleep_n_100ms(cur_sol_t*10)) return;
+     }
+    }
+}
+
 void do_solenoid_test(void)
 {
         int i;
-        int sol;
-    
+
     LCD_CMD(LCD_CMD_CLR); // Display loeschen
     LCD_CMD(LCD_CMD_CUR_BLINK);  //cursor blinkend an
     
@@ -794,36 +828,25 @@ void do_solenoid_test(void)
     LCD_GotoXY(0,1);
     LCD_STRING(" press&hold OK      ");   
     LCD_GotoXY(0,2);
-    LCD_STRING(" to cancel test     ");   
-    
+    LCD_STRING(" to cancel test     ");
+
+    //option 1: relays Tilt, GO & Coin Lockout (lamp outputs)
+    if (cur_option[cur_menu] == 1)
+    {
+        do_relay_test();
+        return;
+    }
+
     while(1)  //test forever
     {
      for(i=select_from[cur_menu]; i<=select_to[cur_menu]; i++)
      {
-      LCD_GotoXY(0,3);        
-      sprintf(line," pulse solenoid %02x",i);
-      LCD_STRING(line);   
-      LCD_GotoXY(12,3);        
-      
-      switch(cur_option[cur_menu])
-      {     
-          case 0: //momentary solenoids
-              solenoid_pulse(i);
-              break;          
-          case 1: //continous solenoids
-              switch(i)
-              {
-                  case 1: sol = 0b1110; break;
-                  case 2: sol = 0b1101; break;
-                  case 3: sol = 0b1011; break;
-                  case 4: sol = 0b0111; break;
-                  default: sol = 0b1111; break;                  
-              }
-              //cont_sol_set(sol);
-              __delay_ms(800);
-              //cont_sol_set(sol);
-              break;          
-      }
+      LCD_GotoXY(0,3);
+      sprintf(line," pulse solenoid %02d",i);
+      LCD_STRING(line);
+      LCD_GotoXY(12,3);
+
+      solenoid_pulse(i);
       if (sleep_n_100ms(cur_sol_t*10)) return;
      }
     }
@@ -947,7 +970,9 @@ TRISE = 0;    //All Output
 SOL1 = SOL2 = SOL3 = SOL4 = SOL5 = SOL6 = SOL7 = SOL8 = SOL9 = 0;
 //set 238 to 15 ( LED ))
 set_238(15);
-    
+//74175 on the driver board power up undefined: all lamps & relays off
+for ( i=0; i<N_LAMPS; i++) q_set(i,0);
+
 LCD_INIT();
 
 LCD_CMD(LCD_CMD_CLR); // Display loeschen
