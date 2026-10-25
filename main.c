@@ -10,6 +10,7 @@
  *       from/to range limits, t:0 lockout and switch debounce fixed
  * v 0.4 lamp numbers are Gottlieb lamp numbers 0..47 (decimal, no offset),
  *       all lamps off at start and after test, relay test (GO, Tilt, Lockout)
+ * v 0.5 lamp test default range starts at 0 again (GO and Tilt relay included)
  */
 
 //no warnings about 
@@ -23,7 +24,7 @@
 #include <string.h>
 #include "lcd_hd44780.h"
 
-#define VERSION "0.4"
+#define VERSION "0.5"
 
 //typedefs
 typedef union typed {
@@ -90,8 +91,8 @@ uint8_t n_main_menu = 3;
   uint8_t n_option[3] = { 6, 3, 2 };
   
   //default values from to for the 3 main menues
-  //lamps: Gottlieb lamp numbers, 0=GO relay 1=Tilt relay are skipped by default
-  int select_from[3] = { 2, 1, 1 };
+  //lamps: Gottlieb lamp numbers, 0=GO relay 1=Tilt relay are included by default
+  int select_from[3] = { 0, 1, 1 };
   int select_to[3] = { 47, 15, 9 };
   //limits for from/to: lamps 12 flip-flops * 4 (48..51 are inverted 44..47), sound 4 lines, 9 solenoids
   const int select_min[3] = { 0, 1, 1 };

@@ -11,7 +11,7 @@ More test equipment: <https://lisy.dev/swrep/test_equipment>
 
 | Test      | Options                                   | Range (default) |
 |-----------|-------------------------------------------|-----------------|
-| Lamps     | all lamps, several aux lampboard variants | 0 ... 47 (2 ... 47) |
+| Lamps     | all lamps, several aux lampboard variants | 0 ... 47 (0 ... 47) |
 | Sound     | small SB, big SB 80/80A, big SB 80B       | 1 ... 15        |
 | Solenoids | SOL1 ... SOL9; Tilt, GO & C.Lockout relay | 1 ... 9         |
 
@@ -38,6 +38,8 @@ MPLAB extension (CMake/Ninja).
 
 ## Version history
 
+- **0.5** lamp test default range starts at 0 again, so the Game Over and Tilt
+  relays (lamps 0 and 1) are included
 - **0.4** lamp numbering fixed (was shifted by two and shown in hex, lamp 47
   was never reached), all numbers decimal, lamps off at start and after cancel,
   relay test for GO, Tilt and Coin Lockout implemented
